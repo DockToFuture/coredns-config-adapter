@@ -163,13 +163,51 @@ func buildServerConfig(serverConfig []byte, bindStatement string, buf *bytes.Buf
 			}
 
 			if !strings.Contains(string(token[0].Text), block.Keys[0]) {
-				buf.WriteString("    " + strings.Join(func(tokens []caddyfile.Token) []string {
-					var texts []string
-					for _, t := range tokens {
-						texts = append(texts, string(t.Text))
+				texts := func(tokens []caddyfile.Token) string {
+					if len(tokens) == 0 {
+						return ""
 					}
-					return texts
-				}(token), " ") + "\n")
+
+					var result strings.Builder
+					indentLevel := 0
+
+					for i, t := range tokens {
+						text := string(t.Text)
+
+						// Handle new lines and indentation
+						if i > 0 && t.Line != tokens[i-1].Line {
+							result.WriteString("\n")
+							// Calculate proper indent for this token
+							currentIndent := indentLevel
+							if text == "}" && currentIndent > 0 {
+								currentIndent--
+							}
+							if currentIndent > 0 {
+								result.WriteString(strings.Repeat("    ", currentIndent))
+							}
+						} else if i > 0 {
+							result.WriteString(" ")
+						}
+
+						result.WriteString(text)
+
+						// Update indent level after processing
+						if text == "{" {
+							indentLevel++
+						} else if text == "}" && indentLevel > 0 {
+							indentLevel--
+						}
+					}
+					return result.String()
+				}(token)
+				lines := strings.Split(texts, "\n")
+				for _, line := range lines {
+					if strings.TrimSpace(line) != "" {
+						buf.WriteString("    " + line + "\n")
+					} else {
+						buf.WriteString("\n")
+					}
+				}
 			}
 		}
 		buf.WriteString("}\n\n")
